@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Мурино FM</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        }
+        body {
+            height: 100vh;
+            background: #0b0e1a;
+            overflow: hidden;
+        }
+        .main-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background: #0b0e1a;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+            background: #fff;
+        }
+        .offline-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 14, 26, 0.95);
+            backdrop-filter: blur(8px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 30px;
+        }
+        .offline-overlay.show {
+            display: flex;
+        }
+        .offline-overlay img {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            display: block;
+        }
+        .offline-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+        .offline-sub {
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 24px;
+        }
+        .refresh-btn {
+            background: linear-gradient(135deg, #f7b731, #e67e22);
+            border: none;
+            border-radius: 30px;
+            padding: 10px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1f2f;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.2s;
+        }
+        .refresh-btn:hover:not(:disabled) {
+            transform: scale(1.04);
+            box-shadow: 0 4px 16px rgba(230, 126, 34, 0.4);
+        }
+        .refresh-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .refresh-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+        .spinning svg {
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <iframe id="mainFrame" src="https://m.volnorez.com/murino_fm"></iframe>
+        <div class="offline-overlay" id="offlineOverlay">
+            <img src="favicon.png" alt="Нет интернета" />
+            <div class="offline-title">Нет подключения к интернету</div>
+            <div class="offline-sub">Проверьте соединение</div>
+            <button class="refresh-btn" id="refreshBtn">
+                <svg viewBox="0 0 24 24">
+                    <path d="M17.65 6.35A8 8 0 1 0 19 12h-2a6 6 0 1 1-2.23-4.69l2.64-2.64 1.42 1.42-3.54 3.54-3.54-3.54 1.41-1.41L17.65 6.35z"/>
+                </svg>
+                Обновить
+            </button>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const iframe = document.getElementById('mainFrame');
+            const refreshBtn = document.getElementById('refreshBtn');
+            const offlineOverlay = document.getElementById('offlineOverlay');
+
+            let isOnline = false;
+
+            function updateUI(online) {
+                isOnline = online;
+                if (online) {
+                    offlineOverlay.classList.remove('show');
+                    iframe.style.display = 'block';
+                } else {
+                    offlineOverlay.classList.add('show');
+                    iframe.style.display = 'none';
+                }
+            }
+
+            function checkInternet() {
+                if (!navigator.onLine) {
+                    updateUI(false);
+                    return;
+                }
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 3000);
+                fetch('https://cloudflare-dns.com/dns-query', {
+                    method: 'HEAD',
+                    mode: 'cors',
+                    cache: 'no-store',
+                    signal: controller.signal
+                })
+                .then(() => {
+                    clearTimeout(timeout);
+                    updateUI(true);
+                })
+                .catch(() => {
+                    clearTimeout(timeout);
+                    updateUI(false);
+                });
+            }
+
+            function reloadIframe() {
+                refreshBtn.disabled = true;
+                refreshBtn.classList.add('spinning');
+                refreshBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24">
+                        <path d="M17.65 6.35A8 8 0 1 0 19 12h-2a6 6 0 1 1-2.23-4.69l2.64-2.64 1.42 1.42-3.54 3.54-3.54-3.54 1.41-1.41L17.65 6.35z"/>
+                    </svg>
+                    Обновление...
+                `;
+
+                checkInternet();
+
+                setTimeout(() => {
+                    if (isOnline) {
+                        const src = iframe.src.split('?')[0];
+                        iframe.src = src + '?t=' + Date.now();
+                    } else {
+                        offlineOverlay.classList.add('show');
+                        iframe.style.display = 'none';
+                    }
+                    refreshBtn.disabled = false;
+                    refreshBtn.classList.remove('spinning');
+                    refreshBtn.innerHTML = `
+                        <svg viewBox="0 0 24 24">
+                            <path d="M17.65 6.35A8 8 0 1 0 19 12h-2a6 6 0 1 1-2.23-4.69l2.64-2.64 1.42 1.42-3.54 3.54-3.54-3.54 1.41-1.41L17.65 6.35z"/>
+                        </svg>
+                        Обновить
+                    `;
+                }, 500);
+            }
+
+            window.addEventListener('online', checkInternet);
+            window.addEventListener('offline', () => updateUI(false));
+            refreshBtn.addEventListener('click', reloadIframe);
+
+            iframe.addEventListener('error', () => {
+                if (isOnline) {
+                    updateUI(false);
+                }
+            });
+
+            checkInternet();
+            setInterval(checkInternet, 30000);
+        })();
+    </script>
+</body>
+</html>
